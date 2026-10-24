@@ -32,6 +32,11 @@ export const App: React.FC = () => {
     const initApp = async () => {
       try {
         await seedDatabase(db);
+        // Sicherstellen, dass Vorlagen & Übungen vorhanden sind (Auto-Repair)
+        const routineCount = await db.routine_templates.count();
+        if (routineCount === 0) {
+          await seedDatabase(db, { force: true });
+        }
         // Prüfe ob ein offenes Workout existiert
         const openWorkouts = await db.workouts
           .filter((w) => !w.finished_at)

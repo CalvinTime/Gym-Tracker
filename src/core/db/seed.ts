@@ -44,57 +44,50 @@ export async function seedDatabase(
       db.routine_set_templates,
     ],
     async () => {
+      let profileCreated = false;
       const existingProfile = await db.gym_profiles.get(SEED_GYM_PROFILE_ID);
       const hasDefault = existingProfile || (await db.gym_profiles.filter((p) => Boolean(p.is_default)).first());
 
-      if (hasDefault && !force) {
-        const musclesCount = await db.muscles.count();
-        const exercisesCount = await db.exercises.count();
-        const exerciseMusclesCount = await db.exercise_muscles.count();
-
-        return {
-          seeded: false,
-          profileCreated: false,
-          musclesCount,
-          exercisesCount,
-          exerciseMusclesCount,
-        };
+      // 1. Gym Profile einfügen / aktualisieren falls fehlt
+      if (!hasDefault || force) {
+        await db.gym_profiles.put({
+          ...SEED_GYM_PROFILE,
+          updated_at: currentISO(),
+        });
+        profileCreated = true;
       }
 
-      // 1. Gym Profile einfügen / aktualisieren
-      await db.gym_profiles.put({
-        ...SEED_GYM_PROFILE,
-        updated_at: currentISO(),
-      });
+      // 2. Muskelgruppen einfügen falls fehlen
+      const musclesCountInitial = await db.muscles.count();
+      if (musclesCountInitial === 0 || force) {
+        await db.muscles.bulkPut(SEED_MUSCLES);
+      }
 
-      // 2. Muskelgruppen einfügen
-      await db.muscles.bulkPut(SEED_MUSCLES);
+      // 3. Übungen & Muskel-Beziehungen einfügen falls fehlen
+      const exercisesCountInitial = await db.exercises.count();
+      if (exercisesCountInitial === 0 || force) {
+        const exercisesToPut = SEED_EXERCISES_DATA.map((item) => item.exercise);
+        await db.exercises.bulkPut(exercisesToPut);
 
-      // 3. Übungen & Muskel-Beziehungen einfügen
-      const exercisesToPut = SEED_EXERCISES_DATA.map((item) => item.exercise);
-      await db.exercises.bulkPut(exercisesToPut);
-
-      // 4. Exercise-Muscles verknüpfen
-      const exerciseMusclesToPut: ExerciseMuscle[] = [];
-      for (const item of SEED_EXERCISES_DATA) {
-        for (const m of item.muscles) {
-          // Erzeuge deterministische ID basierend auf exercise_id und muscle_id
-          const relationId = `rel-${item.exercise.id.slice(-8)}-${m.muscle_id}`;
-          exerciseMusclesToPut.push({
-            id: relationId,
-            exercise_id: item.exercise.id,
-            muscle_id: m.muscle_id,
-            role: m.role,
-            volume_weight: m.volume_weight,
-            created_at: item.exercise.created_at,
-            updated_at: currentISO(),
-          });
+        const exerciseMusclesToPut: ExerciseMuscle[] = [];
+        for (const item of SEED_EXERCISES_DATA) {
+          for (const m of item.muscles) {
+            const relationId = `rel-${item.exercise.id.slice(-8)}-${m.muscle_id}`;
+            exerciseMusclesToPut.push({
+              id: relationId,
+              exercise_id: item.exercise.id,
+              muscle_id: m.muscle_id,
+              role: m.role,
+              volume_weight: m.volume_weight,
+              created_at: item.exercise.created_at,
+              updated_at: currentISO(),
+            });
+          }
         }
+        await db.exercise_muscles.bulkPut(exerciseMusclesToPut);
       }
 
-      await db.exercise_muscles.bulkPut(exerciseMusclesToPut);
-
-      // 5. Vordefinierte McFit gym80 Beispiel-Routinen (Push / Pull / Legs)
+      // 4. Vordefinierte McFit gym80 Beispiel-Routinen (Push / Pull / Legs) falls fehlen
       const existingRoutinesCount = await db.routine_templates.count();
       if (existingRoutinesCount === 0 || force) {
         for (const sample of SEED_SAMPLE_ROUTINES) {
@@ -136,8 +129,8 @@ export async function seedDatabase(
       const exerciseMusclesCount = await db.exercise_muscles.count();
 
       return {
-        seeded: true,
-        profileCreated: true,
+        seeded: profileCreated || existingRoutinesCount === 0,
+        profileCreated,
         musclesCount,
         exercisesCount,
         exerciseMusclesCount,

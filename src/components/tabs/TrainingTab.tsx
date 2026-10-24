@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { RoutineTemplate, Workout } from '../../core/models/types.ts';
 import { db } from '../../core/db/database.ts';
+import { seedDatabase } from '../../core/db/seed.ts';
 import { WorkoutLifecycleService } from '../../core/services/workout-lifecycle.service.ts';
 import { SEED_GYM_PROFILE_ID } from '../../core/db/seed-data.ts';
 import { Play, Plus, Clock, ChevronRight, Flame } from 'lucide-react';
@@ -199,63 +200,98 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({
           </span>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {routines.map((routine) => (
-            <div
-              key={routine.id}
+        {routines.length === 0 ? (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '24px 16px',
+              backgroundColor: '#101016',
+              borderRadius: 14,
+              border: '1px dashed #22c55e',
+            }}
+          >
+            <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 12 }}>
+              Keine Vorlagen gefunden. Tippe hier, um die 3 McFit gym80 Vorlagen (Push, Pull, Legs) zu laden:
+            </p>
+            <button
+              onClick={async () => {
+                await seedDatabase(db, { force: true });
+                await loadData();
+              }}
               style={{
-                backgroundColor: '#101016',
-                border: '1px solid #20202d',
-                borderRadius: 14,
-                padding: '16px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+                backgroundColor: '#22c55e',
+                color: '#000000',
+                border: 'none',
+                borderRadius: 12,
+                padding: '12px 20px',
+                fontWeight: 800,
+                fontSize: 14,
+                cursor: 'pointer',
+                minHeight: 46,
               }}
             >
-              <div>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 800,
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-                    color: '#22c55e',
-                    border: '1px solid rgba(34, 197, 94, 0.3)',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {routine.split_category}
-                </span>
-                <h3 style={{ fontSize: 17, fontWeight: 800, color: '#f3f4f6', marginTop: 6 }}>
-                  {routine.name}
-                </h3>
-              </div>
-
-              <button
-                onClick={() => handleStartRoutine(routine.id)}
+              ⚡ McFit gym80 Vorlagen laden
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {routines.map((routine) => (
+              <div
+                key={routine.id}
                 style={{
-                  backgroundColor: '#22c55e',
-                  color: '#000000',
-                  border: 'none',
-                  borderRadius: 12,
-                  padding: '10px 16px',
-                  fontWeight: 900,
-                  fontSize: 14,
+                  backgroundColor: '#101016',
+                  border: '1px solid #20202d',
+                  borderRadius: 14,
+                  padding: '16px',
                   display: 'flex',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
-                  gap: 6,
-                  minHeight: 46,
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
                 }}
               >
-                <Play size={16} fill="#000" />
-                Starten
-              </button>
-            </div>
-          ))}
-        </div>
+                <div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                      color: '#22c55e',
+                      border: '1px solid rgba(34, 197, 94, 0.3)',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {routine.split_category}
+                  </span>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: '#f3f4f6', marginTop: 6 }}>
+                    {routine.name}
+                  </h3>
+                </div>
+
+                <button
+                  onClick={() => handleStartRoutine(routine.id)}
+                  style={{
+                    backgroundColor: '#22c55e',
+                    color: '#000000',
+                    border: 'none',
+                    borderRadius: 12,
+                    padding: '10px 16px',
+                    fontWeight: 900,
+                    fontSize: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    minHeight: 46,
+                  }}
+                >
+                  <Play size={16} fill="#000" />
+                  Starten
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Letzte Trainings */}

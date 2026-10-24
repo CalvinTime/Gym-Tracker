@@ -1008,8 +1008,62 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
                 minHeight: 48,
               }}
             >
-              <Plus size={18} /> + Erste Übung hinzufügen
+              <Plus size={18} /> + Übung aus Katalog wählen
             </button>
+
+            {/* Schnellauswahl Chips für McFit gym80 Favoriten */}
+            <div style={{ marginTop: 22 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', marginBottom: 10 }}>
+                Schnellauswahl für dieses Workout:
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  { name: 'gym80 Latzug Turm (Breiter Obergriff)', label: 'gym80 Latzug Turm (1:1 Direktzug)' },
+                  { name: 'gym80 Kabelturm Trizepsdrücken (Seil)', label: 'gym80 Kabelturm Trizepsdrücken (1:2 Turm)' },
+                  { name: 'gym80 Brustpresse Sitzend', label: 'gym80 Brustpresse Sitzend' },
+                ].map((item) => (
+                  <button
+                    key={item.name}
+                    onClick={async () => {
+                      const ex = await db.exercises.where('name').equals(item.name).first();
+                      if (ex) {
+                        await handleAddExerciseToWorkout(ex);
+                      } else {
+                        handleOpenAddExercise();
+                      }
+                    }}
+                    style={{
+                      backgroundColor: '#161622',
+                      border: '1px solid #27273a',
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      color: '#f3f4f6',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span>{item.label}</span>
+                    <span
+                      style={{
+                        backgroundColor: '#22c55e',
+                        color: '#000000',
+                        borderRadius: 6,
+                        padding: '3px 8px',
+                        fontSize: 12,
+                        fontWeight: 900,
+                      }}
+                    >
+                      + Hinzufügen
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
