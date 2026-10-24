@@ -99,7 +99,7 @@ export class WorkoutLifecycleService {
 
     let profileId = gymProfileId;
     if (!profileId) {
-      const defaultProfile = await db.gym_profiles.where('is_default').equals(1).first();
+      const defaultProfile = await db.gym_profiles.filter((p) => Boolean(p.is_default)).first();
       profileId = defaultProfile?.id ?? (await db.gym_profiles.toCollection().first())?.id;
     }
     if (!profileId) throw new Error('Kein GymProfile in der Datenbank gefunden.');

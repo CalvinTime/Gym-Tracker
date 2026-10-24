@@ -24,7 +24,7 @@ export const TrainingTab: React.FC<TrainingTabProps> = ({
 
   const loadData = async () => {
     // Routinen laden
-    const rList = await db.routine_templates.where('is_archived').equals(0).sortBy('order_index');
+    const rList = await db.routine_templates.filter((r) => !r.is_archived).sortBy('order_index');
     setRoutines(rList);
 
     // Aktives Workout laden falls vorhanden

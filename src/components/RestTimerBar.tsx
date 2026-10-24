@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, Plus, Minus, RotateCcw, Volume2, Clock } from 'lucide-react';
+import { Play, Pause, Plus, Minus, RotateCcw, Volume2, Clock, FastForward, CheckCircle2 } from 'lucide-react';
 
 interface RestTimerBarProps {
   lastSetCompletedAt: string | null;
@@ -169,29 +169,74 @@ export const RestTimerBar: React.FC<RestTimerBarProps> = ({
 
         {/* Live Countdown Display */}
         <div
+          onClick={() => {
+            if (countdownRemaining > 0) setCountdownRemaining(0);
+          }}
+          title={countdownRemaining > 0 ? "Tippen zum Überspringen" : undefined}
           style={{
             display: 'flex',
             alignItems: 'baseline',
             gap: 6,
+            cursor: countdownRemaining > 0 ? 'pointer' : 'default',
           }}
         >
           <span style={{ fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', fontWeight: 700 }}>
             Pause:
           </span>
-          <span
-            style={{
-              fontSize: 26,
-              fontWeight: 900,
-              fontVariantNumeric: 'tabular-nums',
-              color: countdownRemaining === 0 ? '#22c55e' : countdownRemaining < 15 ? '#ef4444' : '#f3f4f6',
-            }}
-          >
-            {formatSeconds(countdownRemaining)}
-          </span>
+          {countdownRemaining > 0 ? (
+            <span
+              style={{
+                fontSize: 26,
+                fontWeight: 900,
+                fontVariantNumeric: 'tabular-nums',
+                color: countdownRemaining < 15 ? '#ef4444' : '#f3f4f6',
+              }}
+            >
+              {formatSeconds(countdownRemaining)}
+            </span>
+          ) : (
+            <span
+              style={{
+                fontSize: 18,
+                fontWeight: 900,
+                color: '#22c55e',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <CheckCircle2 size={16} /> Bereit!
+            </span>
+          )}
         </div>
 
-        {/* Play/Pause & Sound */}
+        {/* Play/Pause & Skip & Sound */}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {countdownRemaining > 0 && (
+            <button
+              onClick={() => setCountdownRemaining(0)}
+              aria-label="Pause sofort beenden / überspringen"
+              title="Pause überspringen (Wegmachen)"
+              style={{
+                background: '#142a18',
+                border: '1px solid #22c55e',
+                borderRadius: 8,
+                padding: '0 8px',
+                height: 38,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                color: '#22c55e',
+                fontWeight: 800,
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              <FastForward size={14} fill="#22c55e" />
+              <span>Weg</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsTimerPaused(!isTimerPaused)}
             aria-label={isTimerPaused ? 'Fortsetzen' : 'Pausieren'}

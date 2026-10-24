@@ -22,6 +22,9 @@ import {
   CheckCircle,
   Sparkles,
   ArrowLeft,
+  Search,
+  X,
+  Dumbbell,
 } from 'lucide-react';
 
 interface WorkoutScreenProps {
@@ -64,6 +67,11 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   // Letzter abgeschlossener Satz für Rest-Timer
   const [lastCompletedSet, setLastCompletedSet] = useState<WorkoutSet | null>(null);
 
+  // Add Exercise Modal State
+  const [addExerciseModalOpen, setAddExerciseModalOpen] = useState<boolean>(false);
+  const [allAvailableExercises, setAllAvailableExercises] = useState<Exercise[]>([]);
+  const [exerciseSearchQuery, setExerciseSearchQuery] = useState<string>('');
+
   // Lade Workout-Daten
   const loadWorkoutData = useCallback(async () => {
     const w = await db.workouts.get(workoutId);
@@ -80,15 +88,20 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
     setWorkoutExercises(weList);
 
     const exIds = weList.map((we) => we.exercise_id);
-    const exList = await db.exercises.where('id').anyOf(exIds).toArray();
     const map = new Map<string, Exercise>();
-    exList.forEach((e) => map.set(e.id, e));
+    if (exIds.length > 0) {
+      const exList = await db.exercises.where('id').anyOf(exIds).toArray();
+      exList.forEach((e) => map.set(e.id, e));
+    }
     setExercisesMap(map);
 
     const weIds = weList.map((we) => we.id);
-    const sets = await db.workout_sets
-      .where('workout_exercise_id').anyOf(weIds)
-      .sortBy('set_number');
+    let sets: WorkoutSet[] = [];
+    if (weIds.length > 0) {
+      sets = await db.workout_sets
+        .where('workout_exercise_id').anyOf(weIds)
+        .sortBy('set_number');
+    }
     setWorkoutSets(sets);
 
     // Letzten Satz mit completed_at finden
@@ -102,6 +115,74 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
   useEffect(() => {
     loadWorkoutData();
   }, [loadWorkoutData]);
+
+  // Übung hinzufügen öffnen
+  const handleOpenAddExercise = async () => {
+    const list = await db.exercises.toArray();
+    list.sort((a, b) => a.name.localeCompare(b.name));
+    setAllAvailableExercises(list);
+    setExerciseSearchQuery('');
+    setAddExerciseModalOpen(true);
+  };
+
+  // Übung zum aktiven Workout hinzufügen
+  const handleAddExerciseToWorkout = async (exercise: Exercise) => {
+    const now = new Date().toISOString();
+    const weId = crypto.randomUUID ? crypto.randomUUID() : `we-${Date.now()}`;
+    await db.workout_exercises.add({
+      id: weId,
+      workout_id: workoutId,
+      exercise_id: exercise.id,
+      order_index: workoutExercises.length,
+      superset_group_id: null,
+      session_note: '',
+      pause_progression: false,
+      created_at: now,
+      updated_at: now,
+    });
+
+    // 3 Standard-Arbeitssätze anlegen (oder 3x links/rechts bei unilateral)
+    const sides: Array<'both' | 'left' | 'right'> =
+      exercise.laterality === 'unilateral' ? ['left', 'right'] : ['both'];
+    let setNumber = 1;
+    for (let s = 1; s <= 3; s++) {
+      for (const side of sides) {
+        await db.workout_sets.add({
+          id: crypto.randomUUID ? crypto.randomUUID() : `ws-${Date.now()}-${setNumber}`,
+          workout_exercise_id: weId,
+          set_number: setNumber++,
+          side,
+          set_type: 'working',
+          target_weight_snapshot:
+            exercise.default_bar_or_sled_weight_kg ||
+            (exercise.equipment_type === 'dumbbell' ? 12 : 30),
+          target_reps_min_snapshot: exercise.movement_type === 'compound' ? 8 : 10,
+          target_reps_max_snapshot: exercise.movement_type === 'compound' ? 10 : 12,
+          target_rir_snapshot: 2,
+          actual_weight: null,
+          effective_weight_kg: null,
+          actual_reps: null,
+          actual_rir: null,
+          used_micro_addon: false,
+          is_completed: false,
+          completed_at: null,
+          pr_flags: [],
+          created_at: now,
+          updated_at: now,
+        });
+      }
+    }
+
+    setAddExerciseModalOpen(false);
+    await loadWorkoutData();
+  };
+
+  // Übung aus Workout entfernen
+  const handleDeleteExercise = async (weId: string) => {
+    await db.workout_sets.where('workout_exercise_id').equals(weId).delete();
+    await db.workout_exercises.delete(weId);
+    await loadWorkoutData();
+  };
 
   // Speichere Top-Note
   const handleSaveTopNote = async () => {
@@ -598,6 +679,27 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
                         </>
                       )}
                     </button>
+
+                    {/* Übung entfernen Button */}
+                    <button
+                      onClick={() => handleDeleteExercise(we.id)}
+                      aria-label="Übung entfernen"
+                      title="Übung aus Workout entfernen"
+                      style={{
+                        background: '#1a1418',
+                        border: '1px solid #3d1f28',
+                        borderRadius: 8,
+                        padding: '6px 8px',
+                        color: '#f87171',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: 36,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -870,7 +972,197 @@ export const WorkoutScreen: React.FC<WorkoutScreenProps> = ({
             </div>
           );
         })}
+
+        {/* Empty State wenn keine Übungen vorhanden */}
+        {workoutExercises.length === 0 && (
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '40px 20px',
+              backgroundColor: '#0e0e14',
+              borderRadius: 16,
+              border: '1px dashed #2a2a3e',
+            }}
+          >
+            <Dumbbell size={44} color="#22c55e" style={{ margin: '0 auto 12px' }} />
+            <h3 style={{ fontSize: 17, fontWeight: 800, color: '#f3f4f6', marginBottom: 6 }}>
+              Noch keine Übungen im Workout
+            </h3>
+            <p style={{ fontSize: 13, color: '#9ca3af', marginBottom: 20 }}>
+              Wähle Übungen wie z.B. <strong>gym80 Latzug</strong> oder <strong>Trizepsdrücken</strong> aus.
+            </p>
+            <button
+              onClick={handleOpenAddExercise}
+              style={{
+                backgroundColor: '#22c55e',
+                color: '#000000',
+                border: 'none',
+                borderRadius: 12,
+                padding: '12px 20px',
+                fontWeight: 800,
+                fontSize: 15,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                minHeight: 48,
+              }}
+            >
+              <Plus size={18} /> + Erste Übung hinzufügen
+            </button>
+          </div>
+        )}
+
+        {/* Button "+ Übung hinzufügen" wenn bereits Übungen vorhanden */}
+        {workoutExercises.length > 0 && (
+          <button
+            onClick={handleOpenAddExercise}
+            style={{
+              backgroundColor: '#14141e',
+              border: '1px dashed #28283a',
+              borderRadius: 14,
+              padding: '14px',
+              color: '#22c55e',
+              fontWeight: 800,
+              fontSize: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              minHeight: 48,
+              marginTop: 4,
+            }}
+          >
+            <Plus size={18} /> + Weitere Übung hinzufügen
+          </button>
+        )}
       </div>
+
+      {/* MODAL: ÜBUNG ZUM WORKOUT HINZUFÜGEN */}
+      {addExerciseModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            className="animate-slide-up"
+            style={{
+              width: '100%',
+              maxWidth: 500,
+              backgroundColor: '#121218',
+              borderTop: '2px solid #22c55e',
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              padding: '20px 16px',
+              paddingBottom: 'calc(var(--safe-bottom) + 20px)',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 900, color: '#f3f4f6' }}>Übung hinzufügen</h2>
+              <button
+                onClick={() => setAddExerciseModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            {/* Suchfeld */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                backgroundColor: '#181824',
+                border: '1px solid #29293e',
+                borderRadius: 12,
+                padding: '10px 14px',
+                marginBottom: 12,
+              }}
+            >
+              <Search size={18} color="#9ca3af" />
+              <input
+                type="text"
+                value={exerciseSearchQuery}
+                onChange={(e) => setExerciseSearchQuery(e.target.value)}
+                placeholder="Übung suchen (z.B. Latzug, Trizeps)..."
+                autoFocus
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  outline: 'none',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  width: '100%',
+                }}
+              />
+            </div>
+
+            {/* Übungsliste */}
+            <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {allAvailableExercises
+                .filter((ex) => ex.name.toLowerCase().includes(exerciseSearchQuery.toLowerCase()))
+                .map((ex) => (
+                  <div
+                    key={ex.id}
+                    onClick={() => handleAddExerciseToWorkout(ex)}
+                    style={{
+                      backgroundColor: '#161622',
+                      border: '1px solid #242436',
+                      borderRadius: 12,
+                      padding: '12px 14px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: '#f3f4f6' }}>{ex.name}</div>
+                      <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, display: 'flex', gap: 6 }}>
+                        <span style={{ color: '#06b6d4' }}>
+                          {ex.pulley_ratio === 0.5
+                            ? '1:2 Flaschenzug'
+                            : ex.pulley_ratio === 1.0 && ex.equipment_type === 'cable_stack'
+                            ? '1:1 Direktzug'
+                            : ex.equipment_type}
+                        </span>
+                        <span>•</span>
+                        <span>{ex.movement_type === 'compound' ? 'Grundübung' : 'Isolation'}</span>
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        backgroundColor: '#22c55e',
+                        color: '#000000',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 900,
+                      }}
+                    >
+                      <Plus size={18} />
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* DOCKED CUSTOM GYM KEYPAD */}
       <GymKeypad

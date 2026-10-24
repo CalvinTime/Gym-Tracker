@@ -45,7 +45,7 @@ export async function seedDatabase(
     ],
     async () => {
       const existingProfile = await db.gym_profiles.get(SEED_GYM_PROFILE_ID);
-      const hasDefault = existingProfile || (await db.gym_profiles.where('is_default').equals(1).first());
+      const hasDefault = existingProfile || (await db.gym_profiles.filter((p) => Boolean(p.is_default)).first());
 
       if (hasDefault && !force) {
         const musclesCount = await db.muscles.count();
